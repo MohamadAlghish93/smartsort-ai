@@ -1,0 +1,5 @@
+{
+  "name": "SmartSort AI",
+  "description": "Intelligent local file organizer that uses Gemini to semantically sort, tag, and secure your files directly in your browser.",
+  "requestFramePermissions": []
+}
