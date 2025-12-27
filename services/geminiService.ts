@@ -1,10 +1,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AIAnalysisResult } from '../types';
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const analyzeFiles = async (filenames: string[], apiKey: string): Promise<AIAnalysisResult[]> => {
+  if (!apiKey) {
+    throw new Error('API key is required');
+  }
 
-export const analyzeFiles = async (filenames: string[]): Promise<AIAnalysisResult[]> => {
+  // Initialize Gemini Client with provided API key
+  const ai = new GoogleGenAI({ apiKey });
   if (filenames.length === 0) return [];
 
   // Batching logic could be added here for very large folders, 

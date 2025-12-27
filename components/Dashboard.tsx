@@ -5,6 +5,40 @@ import { analyzeFiles } from '../services/geminiService';
 import { FileRecord, OrganizedFile, FileSystemDirectoryHandle } from '../types';
 import FileIcon from './FileIcon';
 import StatsPanel from './StatsPanel';
+import ApiKeyModal from './ApiKeyModal';
+
+const API_KEY_STORAGE_KEY = 'gemini_api_key';
+const API_KEY_DATE_KEY = 'gemini_api_key_date';
+
+// Helper function to get today's date string (YYYY-MM-DD)
+const getTodayDateString = (): string => {
+  const today = new Date();
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+};
+
+// Helper function to check if API key is valid for today
+const isApiKeyValidForToday = (): boolean => {
+  const storedDate = localStorage.getItem(API_KEY_DATE_KEY);
+  const today = getTodayDateString();
+  return storedDate === today;
+};
+
+// Helper function to get API key if valid
+const getValidApiKey = (): string | null => {
+  if (!isApiKeyValidForToday()) {
+    // Clear expired API key
+    localStorage.removeItem(API_KEY_STORAGE_KEY);
+    localStorage.removeItem(API_KEY_DATE_KEY);
+    return null;
+  }
+  return localStorage.getItem(API_KEY_STORAGE_KEY);
+};
+
+// Helper function to save API key with today's date
+const saveApiKey = (apiKey: string): void => {
+  localStorage.setItem(API_KEY_STORAGE_KEY, apiKey);
+  localStorage.setItem(API_KEY_DATE_KEY, getTodayDateString());
+};
 
 const Dashboard: React.FC = () => {
   const [rootHandle, setRootHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -13,6 +47,26 @@ const Dashboard: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [filter, setFilter] = useState('');
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+
+  // Check for API key on mount
+  useEffect(() => {
+    const storedApiKey = getValidApiKey();
+    if (storedApiKey) {
+      setApiKey(storedApiKey);
+      setShowApiKeyModal(false);
+    } else {
+      setApiKey(null);
+      setShowApiKeyModal(true);
+    }
+  }, []);
+
+  const handleApiKeySave = (key: string) => {
+    saveApiKey(key);
+    setApiKey(key);
+    setShowApiKeyModal(false);
+  };
 
   const handleSelectFolder = async () => {
     try {
@@ -33,21 +87,31 @@ const Dashboard: React.FC = () => {
 
   const handleAnalyze = async () => {
     if (files.length === 0) return;
+    if (!apiKey) {
+      setShowApiKeyModal(true);
+      return;
+    }
+    
     setIsAnalyzing(true);
     
-    // Only analyze files that haven't been analyzed or failed
-    const pendingFiles = files.filter(f => !f.analysis);
-    const filenames = pendingFiles.map(f => f.name);
-    
-    const results = await analyzeFiles(filenames);
-    
-    // Merge results back
-    setFiles(prev => prev.map(f => {
-      const analysis = results.find(r => r.originalName === f.name);
-      return analysis ? { ...f, analysis, status: 'ready' } : f;
-    }));
-    
-    setIsAnalyzing(false);
+    try {
+      // Only analyze files that haven't been analyzed or failed
+      const pendingFiles = files.filter(f => !f.analysis);
+      const filenames = pendingFiles.map(f => f.name);
+      
+      const results = await analyzeFiles(filenames, apiKey);
+      
+      // Merge results back
+      setFiles(prev => prev.map(f => {
+        const analysis = results.find(r => r.originalName === f.name);
+        return analysis ? { ...f, analysis, status: 'ready' } : f;
+      }));
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      alert('Analysis failed. Please check your API key and try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleExecute = async () => {
@@ -113,6 +177,10 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="h-screen flex flex-col">
+      {showApiKeyModal && (
+        <ApiKeyModal onSave={handleApiKeySave} />
+      )}
+      
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center space-x-3">
