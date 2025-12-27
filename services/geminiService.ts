@@ -63,6 +63,6 @@ export const analyzeFiles = async (filenames: string[], apiKey: string): Promise
     return [];
   } catch (error) {
     console.error("Gemini analysis failed:", error);
-    return [];
+    throw error; // Re-throw to let the caller handle it
   }
 };

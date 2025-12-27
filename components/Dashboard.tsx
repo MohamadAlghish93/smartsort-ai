@@ -50,16 +50,16 @@ const Dashboard: React.FC = () => {
   const [apiKey, setApiKey] = useState<string | null>(null);
   const [showApiKeyModal, setShowApiKeyModal] = useState(false);
 
-  // Check for API key on mount
+  // Show API key modal on mount
   useEffect(() => {
     const storedApiKey = getValidApiKey();
     if (storedApiKey) {
       setApiKey(storedApiKey);
-      setShowApiKeyModal(false);
     } else {
       setApiKey(null);
-      setShowApiKeyModal(true);
     }
+    // Always show modal on load
+    setShowApiKeyModal(true);
   }, []);
 
   const handleApiKeySave = (key: string) => {
@@ -99,16 +99,27 @@ const Dashboard: React.FC = () => {
       const pendingFiles = files.filter(f => !f.analysis);
       const filenames = pendingFiles.map(f => f.name);
       
+      if (filenames.length === 0) {
+        alert('No files to analyze. All files have already been analyzed.');
+        return;
+      }
+      
       const results = await analyzeFiles(filenames, apiKey);
+      
+      if (results.length === 0) {
+        alert('Analysis returned no results. Please check your API key and try again.');
+        return;
+      }
       
       // Merge results back
       setFiles(prev => prev.map(f => {
         const analysis = results.find(r => r.originalName === f.name);
         return analysis ? { ...f, analysis, status: 'ready' } : f;
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Analysis failed:', error);
-      alert('Analysis failed. Please check your API key and try again.');
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      alert(`Analysis failed: ${errorMessage}. Please check your API key and try again.`);
     } finally {
       setIsAnalyzing(false);
     }
@@ -172,7 +183,12 @@ const Dashboard: React.FC = () => {
        if (!groups[path]) groups[path] = [];
        groups[path].push(f);
     });
-    return groups;
+    // Sort folders by name
+    const sortedGroups: Record<string, OrganizedFile[]> = {};
+    Object.keys(groups).sort().forEach(key => {
+      sortedGroups[key] = groups[key];
+    });
+    return sortedGroups;
   }, [filteredFiles]);
 
   return (

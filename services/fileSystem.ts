@@ -16,8 +16,23 @@ export const scanDirectory = async (
   path: string = ''
 ): Promise<FileRecord[]> => {
   let files: FileRecord[] = [];
+  let entries: FileSystemHandle[] = [];
   
+  // Collect all entries first
   for await (const entry of dirHandle.values()) {
+    entries.push(entry);
+  }
+  
+  // Sort entries: folders first, then files, both sorted by name
+  entries.sort((a, b) => {
+    if (a.kind !== b.kind) {
+      return a.kind === 'directory' ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  
+  // Only process files at root level (ignore subdirectories)
+  for (const entry of entries) {
     const relativePath = path ? `${path}/${entry.name}` : entry.name;
     
     if (entry.kind === 'file') {
@@ -32,13 +47,10 @@ export const scanDirectory = async (
         path: relativePath,
         lastModified: file.lastModified
       });
-    } else if (entry.kind === 'directory') {
-      // Recursive scan (optional, can be toggleable but useful for 'Downloads')
-      const subDirHandle = entry as FileSystemDirectoryHandle;
-      const subFiles = await scanDirectory(subDirHandle, relativePath);
-      files = [...files, ...subFiles];
     }
+    // Ignore directories - only scan one level (root level)
   }
+  
   return files;
 };
 
